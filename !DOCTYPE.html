@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple Drawing to G-code</title>
+    <style>
+        body { text-align: center; font-family: Arial, sans-serif; }
+        canvas { border: 1px solid black; touch-action: none; }
+        button { margin-top: 10px; padding: 10px; font-size: 16px; }
+    </style>
+</head>
+<body>
+    <h1>Draw and Convert to G-code</h1>
+    <canvas id="drawCanvas" width="500" height="500"></canvas>
+    <br>
+    <button onclick="clearCanvas()">Clear</button>
+    <button onclick="downloadGcode()">Download G-code</button>
+    
+    <script>
+        const canvas = document.getElementById('drawCanvas');
+        const ctx = canvas.getContext('2d');
+        let drawing = false;
+        let lastX = 0, lastY = 0;
+        let paths = [];
+
+        canvas.addEventListener('mousedown', startDraw);
+        canvas.addEventListener('mousemove', draw);
+        canvas.addEventListener('mouseup', stopDraw);
+        canvas.addEventListener('mouseout', stopDraw);
+
+        canvas.addEventListener('touchstart', (e) => startDraw(e.touches[0]));
+        canvas.addEventListener('touchmove', (e) => {
+            e.preventDefault(); 
+            draw(e.touches[0]);
+        });
+        canvas.addEventListener('touchend', stopDraw);
+
+        function startDraw(e) {
+            drawing = true;
+            [lastX, lastY] = [e.offsetX, e.offsetY];
+        }
+
+        function draw(e) {
+            if (!drawing) return;
+            ctx.beginPath();
+            ctx.moveTo(lastX, lastY);
+            ctx.lineTo(e.offsetX, e.offsetY);
+            ctx.stroke();
+            paths.push({ x1: lastX, y1: lastY, x2: e.offsetX, y2: e.offsetY });
+            [lastX, lastY] = [e.offsetX, e.offsetY];
+        }
+
+        function stopDraw() { drawing = false; }
+
+        function clearCanvas() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            paths = [];
+        }
+
+        function downloadGcode() {
+            let gcode = "G21 ; Set units to mm\nG90 ; Absolute positioning\n";
+            gcode += "G0 Z5 ; Lift pen\n";
+            gcode += paths.map(p => `G0 X${p.x1.toFixed(2)} Y${p.y1.toFixed(2)}\nG1 X${p.x2.toFixed(2)} Y${p.y2.toFixed(2)} F1000\n`).join('');
+            gcode += "G0 Z5 ; Lift pen\n";
+            
+            const blob = new Blob([gcode], { type: 'text/plain' });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = 'drawing.gcode';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        }
+    </script>
+</body>
+</html>
